@@ -32,8 +32,8 @@ from ryu.controller.handler import set_ev_handler
 from ryu.controller.handler import HANDSHAKE_DISPATCHER, CONFIG_DISPATCHER,\
     MAIN_DISPATCHER
 from ryu.ofproto import ofproto_parser
-from ryu.ofproto.ofproto_common import BEBA_EXPERIMENTER_ID
-import ryu.ofproto.beba_v1_0_parser as bebaparser
+from ryu.ofproto.ofproto_common import OPP_EXPERIMENTER_ID
+import ryu.ofproto.opp_v1_0_parser as oppparser
 
 
 # The state transition: HANDSHAKE -> CONFIG -> MAIN
@@ -269,8 +269,8 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
                     [HANDSHAKE_DISPATCHER, CONFIG_DISPATCHER, MAIN_DISPATCHER])
     def exp_error_msg_handler(self, ev):
         msg = ev.msg
-        if msg.experimenter == BEBA_EXPERIMENTER_ID:
-            bebaparser.OFPErrorExperimenterMsg_handler(ev)
+        if msg.experimenter == OPP_EXPERIMENTER_ID:
+            oppparser.OFPErrorExperimenterMsg_handler(ev)
         '''
         elif experimenter_id == {OTHER_EXPERIMENTER_ID}:
             {module}.experimenter_error_msg_handler(ev)

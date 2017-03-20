@@ -17,5 +17,5 @@ script:
 sudo: false
 
 notifications:
-  slack: bebaproj:QOVWgAeMr7r6YebwBWwApXea
+  slack: oppproj:QOVWgAeMr7r6YebwBWwApXea
   email: false
