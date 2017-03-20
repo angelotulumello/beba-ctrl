@@ -13,7 +13,7 @@ Open 4 ssh terminals into the VM (ssh -X mininet@VM_IP)
 
 In the first terminal type
 
-	cd ~/ryu/ryu/app/beba/fail_recovery
+	cd ~/ryu/ryu/app/opp/fail_recovery
 	sudo ryu-manager fault_tolerance_rest_ff_demo_probing.py
 
 

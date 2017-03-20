@@ -10,7 +10,7 @@ Open two ssh terminals into the VM (ssh -X mininet@VM_IP)
 
 In the first terminal start the Ryu Controller application:
 
-	cd ~/ryu/ryu/app/beba/ddos
+	cd ~/ryu/ryu/app/opp/ddos
 	ryu-manager ddos.py
 
 In the second terminal create a small Mininet network with 2 hosts and 1 switch:
@@ -30,7 +30,7 @@ Since we are detecting attacks towards h2 host in general (not towards a particu
 
 Finally open an Echo Server on host h2 (TCP port 2000)
 
-	h2# python ~/ryu/ryu/app/beba/echo_server.py 2000
+	h2# python ~/ryu/ryu/app/opp/echo_server.py 2000
 
 ## Test 1 - normal conditions
 
