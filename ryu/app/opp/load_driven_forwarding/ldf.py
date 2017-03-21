@@ -5,8 +5,8 @@ from ryu.controller.handler import CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 import ryu.ofproto.ofproto_v1_3 as ofproto
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.opp_v1_0 as oppproto
-import ryu.ofproto.opp_v1_0_parser as oppparser
+import ryu.ofproto.beba_v1_0 as bebaproto
+import ryu.ofproto.beba_v1_0_parser as bebaparser
 
 LOG = logging.getLogger('app.openstate.evolution')
 
@@ -58,28 +58,28 @@ class OpenStateEvolution(app_manager.RyuApp):
 		##################################### TABLE 0: DISPATCHING ##################################################
 
 		######################### TABLE 0 CONFIG ###############
-		req = oppparser.OFPExpMsgConfigureStatefulTable(
+		req = bebaparser.OFPExpMsgConfigureStatefulTable(
 				datapath=datapath,
 				table_id=0,
 				stateful=1)
 		datapath.send_msg(req)
 
 		""" Set lookup extractor = {eth_dst} """
-		req = oppparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=oppproto.OFPSC_EXP_SET_L_EXTRACTOR,
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_L_EXTRACTOR,
 				fields=[ofproto.OXM_OF_IN_PORT],
 				table_id=0)
 		datapath.send_msg(req)
 
 		""" Set update extractor = {eth_dst}  """
-		req = oppparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=oppproto.OFPSC_EXP_SET_U_EXTRACTOR,
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_U_EXTRACTOR,
 				fields=[ofproto.OXM_OF_IN_PORT],
 				table_id=0)
 		datapath.send_msg(req)
 
 		""" Field extractor for mpls label """
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=0,
 				extractor_id=0,
@@ -87,15 +87,15 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		""" Field extractor for timestamp """
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=0,
 				extractor_id=1,
-				field=oppproto.OXM_EXP_TIMESTAMP)
+				field=bebaproto.OXM_EXP_TIMESTAMP)
 		datapath.send_msg(req)
 
 		""" Packet counter_max for designing probe frequency """
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=0,
 				global_data_variable_id=0,
@@ -103,20 +103,20 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		""" Condition C0: if counter reaches counter_max, then trigger probe sending """ 
-		req = oppparser.OFPExpMsgSetCondition(
+		req = bebaparser.OFPExpMsgSetCondition(
 				datapath=datapath,
 				table_id=0,
 				condition_id=0,
-				condition=oppproto.CONDITION_GTE,
+				condition=bebaproto.CONDITION_GTE,
 				operand_1_fd_id=0,
 				operand_2_gd_id=0)
 		datapath.send_msg(req)
 
-		req = oppparser.OFPExpMsgSetCondition(
+		req = bebaparser.OFPExpMsgSetCondition(
 				datapath=datapath,
 				table_id=0,
 				condition_id=3,
-				condition=oppproto.CONDITION_GTE,
+				condition=bebaproto.CONDITION_GTE,
 				operand_1_fd_id=0,
 				operand_2_gd_id=0)
 		datapath.send_msg(req)
@@ -143,7 +143,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		for i in UPPER_PORTS:
 			""" Writes metadata 1 if C0 is true (i.e. if it's time to send probe) to inform the Util Table (2) """
 			match = ofparser.OFPMatch(in_port=i, condition0=1)
-			actions = [oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUB, output_fd_id=0, operand_1_fd_id=0, operand_2_gd_id=0),
+			actions = [bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUB, output_fd_id=0, operand_1_fd_id=0, operand_2_gd_id=0),
 						ofparser.OFPActionPushMpls()] #push mpls for tab 2
 			instructions = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions),
 							ofparser.OFPInstructionWriteMetadata(metadata=1, metadata_mask=0xffffffff),
@@ -158,7 +158,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 
 			""" If C0 is false, update the counter (i++) and go to Util Table for ewma measuring """ 
 			match = ofparser.OFPMatch(in_port=i, condition0=0)
-			actions = [oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUM, output_fd_id=0, operand_1_fd_id=0, operand_2_cost=1)]
+			actions = [bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUM, output_fd_id=0, operand_1_fd_id=0, operand_2_cost=1)]
 			instructions = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions), ofparser.OFPInstructionGotoTable(2)]
 			mod = ofparser.OFPFlowMod(
 				datapath=datapath,
@@ -194,66 +194,45 @@ class OpenStateEvolution(app_manager.RyuApp):
 		######################## TABLE 1 ToR DISCOVERY  #########################################################
 
 		# this cycle writes metadata specifying to which leaf belongs the packet
-
-		match=ofparser.OFPMatch(eth_dst=MAC_ADDRS[0])
-		instructions = [ofparser.OFPInstructionWriteMetadata(metadata=1, metadata_mask=0xffffffff), 
-						ofparser.OFPInstructionGotoTable(3)]
-		mod = ofparser.OFPFlowMod(
-				datapath=datapath,
-				table_id=1,
-				priority=0,
-				match=match,
-				instructions=instructions)
-		datapath.send_msg(mod)
-
-		match=ofparser.OFPMatch(eth_dst=MAC_ADDRS[1])
-		instructions = [ofparser.OFPInstructionWriteMetadata(metadata=2, metadata_mask=0xffffffff), 
-						ofparser.OFPInstructionGotoTable(3)]
-		mod = ofparser.OFPFlowMod(
-				datapath=datapath,
-				table_id=1,
-				priority=0,
-				match=match,
-				instructions=instructions)
-		datapath.send_msg(mod)
-
-		match=ofparser.OFPMatch(eth_dst=MAC_ADDRS[2])
-		instructions = [ofparser.OFPInstructionWriteMetadata(metadata=3, metadata_mask=0xffffffff), 
-						ofparser.OFPInstructionGotoTable(3)]
-		mod = ofparser.OFPFlowMod(
-				datapath=datapath,
-				table_id=1,
-				priority=0,
-				match=match,
-				instructions=instructions)
-		datapath.send_msg(mod)
+		for i in LEAVES:
+			if (i != datapath.id):
+				match=ofparser.OFPMatch(eth_dst=MAC_ADDRS[i-1])
+				instructions = [ofparser.OFPInstructionWriteMetadata(metadata=i, metadata_mask=0xffffffff), 
+								ofparser.OFPInstructionGotoTable(3)]
+				mod = ofparser.OFPFlowMod(
+						datapath=datapath,
+						table_id=1,
+						priority=0,
+						match=match,
+						instructions=instructions)
+				datapath.send_msg(mod)
 
 
 		######################### TABLE 2: ACTIVE PROBING ######################################################
 
 		################### TABLE 2 CONFIG #########
 
-		req = oppparser.OFPExpMsgConfigureStatefulTable(
+		req = bebaparser.OFPExpMsgConfigureStatefulTable(
 				datapath=datapath,
 				table_id=2,
 				stateful=1)
 		datapath.send_msg(req)
 
 		""" Set lookup extractor = {IN_PORT} """
-		req = oppparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=oppproto.OFPSC_EXP_SET_L_EXTRACTOR,
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_L_EXTRACTOR,
 				fields=[ofproto.OXM_OF_IN_PORT],
 				table_id=2)
 		datapath.send_msg(req)
 
 		""" Set update extractor = {IN_PORT}  """
-		req = oppparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=oppproto.OFPSC_EXP_SET_U_EXTRACTOR,
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_U_EXTRACTOR,
 				fields=[ofproto.OXM_OF_IN_PORT],
 				table_id=2)
 		datapath.send_msg(req)
 		# multiply factor: convert to kbit/s
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=2,
 				global_data_variable_id=0,
@@ -261,31 +240,31 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# number of averaging samples
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=2,
 				global_data_variable_id=3,
 				value=40)				
 		datapath.send_msg(req)
 
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=2,
 				extractor_id=1,
-				field=oppproto.OXM_EXP_TIMESTAMP
+				field=bebaproto.OXM_EXP_TIMESTAMP
 			)
 		datapath.send_msg(req)
 
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=2,
 				extractor_id=2,
-				field=oppproto.OXM_EXP_PKT_LEN)
+				field=bebaproto.OXM_EXP_PKT_LEN)
 		datapath.send_msg(req)
 
-		req = oppparser.OFPExpMsgSetCondition(
+		req = bebaparser.OFPExpMsgSetCondition(
 				datapath=datapath,
-				condition=oppproto.CONDITION_GTE,
+				condition=bebaproto.CONDITION_GTE,
 				condition_id=0,
 				table_id=2,
 				operand_1_fd_id=4,
@@ -300,24 +279,24 @@ class OpenStateEvolution(app_manager.RyuApp):
 			#simply ewma measuring
 			match = ofparser.OFPMatch(in_port=i, condition0=1)
 			actions_ewma_1 = [#calculates deltaT: FDV[1]=HF[1]-FDV[0]=TS_NOW - TS_LAST
-						oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_SUB, output_fd_id=1, operand_1_hf_id=1, operand_2_fd_id=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_SUB, output_fd_id=1, operand_1_hf_id=1, operand_2_fd_id=0),
 						#calculates rate: R = (bytes / deltaT_us) * 1000 kB/s
-						oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_MUL, output_fd_id=2, operand_1_fd_id=2, operand_2_gd_id=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_MUL, output_fd_id=2, operand_1_fd_id=2, operand_2_gd_id=0),
 						#stores the result in FDV[3]: THE FLOW ESTIMATED RATE
-						oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_DIV, output_fd_id=2, operand_1_fd_id=2, operand_2_fd_id=1),
+						bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_DIV, output_fd_id=2, operand_1_fd_id=2, operand_2_fd_id=1),
 						#calculates ewma
-						oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_EWMA, output_fd_id=3, operand_1_fd_id=3, operand_2_fd_id=2, coeff_3=30),
+						bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_EWMA, output_fd_id=3, operand_1_fd_id=3, operand_2_fd_id=2, coeff_3=30),
 						#saves current timestamp
-						oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_SUM, output_fd_id=0, operand_1_hf_id=1, operand_2_cost=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_SUM, output_fd_id=0, operand_1_hf_id=1, operand_2_cost=0),
 						#counter returns to zero
-						oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_SUB, output_fd_id=4, operand_1_fd_id=4, operand_2_fd_id=4),
+						bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_SUB, output_fd_id=4, operand_1_fd_id=4, operand_2_fd_id=4),
 						# saves in GDV[i] the ewma
-						oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_SUM, output_gd_id=i, operand_1_fd_id=3, operand_2_cost=0)]
+						bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_SUM, output_gd_id=i, operand_1_fd_id=3, operand_2_cost=0)]
 			self.add_flow(datapath=datapath,table_id=2,priority=30,match=match,actions=actions_ewma_1+[ofparser.OFPActionOutput(3)])
 
 			match = ofparser.OFPMatch(in_port=i, condition0=0)
-			actions_ewma_2 = [oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_SUM, output_fd_id=2, operand_1_fd_id=2, operand_2_hf_id=2),
-						oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_SUM, output_fd_id=4, operand_1_fd_id=4, operand_2_cost=1)]
+			actions_ewma_2 = [bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_SUM, output_fd_id=2, operand_1_fd_id=2, operand_2_hf_id=2),
+						bebaparser.OFPExpActionSetDataVariable(table_id=2, opcode=bebaproto.OPCODE_SUM, output_fd_id=4, operand_1_fd_id=4, operand_2_cost=1)]
 			self.add_flow(datapath=datapath,table_id=2,priority=30,match=match,actions=actions_ewma_2+[ofparser.OFPActionOutput(3)])
 			
 			""" PROBES: When it matches metadata=1 it means that this packet has to be duplicated to piggyback on it the probe """
@@ -325,12 +304,12 @@ class OpenStateEvolution(app_manager.RyuApp):
 			#group mod for packet duplication and probing
 			buckets = []
 			actions1 = [ofparser.OFPActionSetField(mpls_tc=datapath.id),							   #the GDV[i]
-						oppparser.OFPExpActionWriteContextToField(src_type=oppproto.SOURCE_TYPE_GLOBAL_DATA_VAR, src_id=i, dst_field=ofproto.OXM_OF_MPLS_LABEL),
+						bebaparser.OFPExpActionWriteContextToField(src_type=bebaproto.SOURCE_TYPE_GLOBAL_DATA_VAR, src_id=i, dst_field=ofproto.OXM_OF_MPLS_LABEL),
 						ofparser.OFPActionOutput(ofproto.OFPP_IN_PORT)]
 			buckets.append(ofparser.OFPBucket(actions=actions1))
 
 			actions1 = [ofparser.OFPActionSetField(mpls_tc=datapath.id),								#the GDV[other]
-						oppparser.OFPExpActionWriteContextToField(src_type=oppproto.SOURCE_TYPE_GLOBAL_DATA_VAR, src_id=(1 if i==2 else 2), dst_field=ofproto.OXM_OF_MPLS_LABEL),
+						bebaparser.OFPExpActionWriteContextToField(src_type=bebaproto.SOURCE_TYPE_GLOBAL_DATA_VAR, src_id=(1 if i==2 else 2), dst_field=ofproto.OXM_OF_MPLS_LABEL),
 						ofparser.OFPActionOutput((1 if i==2 else 2))]
 			buckets.append(ofparser.OFPBucket(actions=actions1))
 
@@ -363,11 +342,6 @@ class OpenStateEvolution(app_manager.RyuApp):
 				actions = actions_ewma_2 + [ofparser.OFPActionOutput(3)]
 				self.add_flow(datapath=datapath, table_id=2, priority=150, match=match, actions=actions)
 
-		# if it matches something brutto lo butto
-		match = ofparser.OFPMatch()
-		actions = []
-		self.add_flow(datapath=datapath, priority=0, table_id=2, match=match, actions=actions)
-
 
 		######################## TABLE 3: FORWARDING ##############################################################
 
@@ -379,52 +353,50 @@ class OpenStateEvolution(app_manager.RyuApp):
 		##### GDV[3] contains path utilization to dest 1 on port 2
 		##### GDV[4] contains path utilization to dest 2 on port 2
 
-		req = oppparser.OFPExpMsgConfigureStatefulTable(
+		req = bebaparser.OFPExpMsgConfigureStatefulTable(
 				datapath=datapath,
 				table_id=3,
 				stateful=1)
 		datapath.send_msg(req)
 
 		""" Set lookup extractor = {ETH_DST IP_PROTO TCP_DST} """
-		req = oppparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=oppproto.OFPSC_EXP_SET_L_EXTRACTOR,
-				#fields=[ofproto.OXM_OF_IPV4_SRC, ofproto.OXM_OF_IPV4_DST, ofproto.OXM_OF_IP_PROTO],
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_L_EXTRACTOR,
 				fields=[ofproto.OXM_OF_IPV4_SRC, ofproto.OXM_OF_IPV4_DST, ofproto.OXM_OF_TCP_SRC, ofproto.OXM_OF_TCP_DST],
 				table_id=3)
 		datapath.send_msg(req)
 
 		""" Set update extractor = {}  """
-		req = oppparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=oppproto.OFPSC_EXP_SET_U_EXTRACTOR,
-				#fields=[ofproto.OXM_OF_IPV4_SRC, ofproto.OXM_OF_IPV4_DST, ofproto.OXM_OF_IP_PROTO],
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_U_EXTRACTOR,
 				fields=[ofproto.OXM_OF_IPV4_SRC, ofproto.OXM_OF_IPV4_DST, ofproto.OXM_OF_TCP_SRC, ofproto.OXM_OF_TCP_DST],
 				table_id=3)
 		datapath.send_msg(req)
 
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=3,
 				extractor_id=0,
 				field=ofproto.OXM_OF_MPLS_LABEL)
 		datapath.send_msg(req)
 
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=3,
 				extractor_id=1,
-				field=oppproto.OXM_EXP_TIMESTAMP
+				field=bebaproto.OXM_EXP_TIMESTAMP
 			)
 		datapath.send_msg(req)
 
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=3,
 				extractor_id=2,
-				field=oppproto.OXM_EXP_PKT_LEN)
+				field=bebaproto.OXM_EXP_PKT_LEN)
 		datapath.send_msg(req)
 
 		# GDV[0] = multiply factor
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=3,
 				global_data_variable_id=0,
@@ -432,7 +404,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# GDV[6] = packets needed for average
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=3,
 				global_data_variable_id=6,
@@ -440,7 +412,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# GDV[5] = elephant flow threshold
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=3,
 				global_data_variable_id=5,
@@ -448,7 +420,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# Lower flow threshold
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=3,
 				global_data_variable_id=7,
@@ -456,7 +428,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		for i in [1,2,3]:
-			req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+			req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 					datapath=datapath,
 					table_id=3,
 					global_data_variable_id=i,
@@ -471,9 +443,9 @@ class OpenStateEvolution(app_manager.RyuApp):
 		# in the case of 2 Spines. For more spines the configuration becomes more complex
 		for destLeaf in [1,2]:
 			# C[destinationLeaf]: which port is less utilized? 
-			req = oppparser.OFPExpMsgSetCondition(
+			req = bebaparser.OFPExpMsgSetCondition(
 					datapath=datapath,
-					condition=oppproto.CONDITION_LTE,
+					condition=bebaproto.CONDITION_LTE,
 					condition_id=destLeaf,
 					table_id=3,
 					operand_1_gd_id=destLeaf,
@@ -481,9 +453,9 @@ class OpenStateEvolution(app_manager.RyuApp):
 			datapath.send_msg(req)
 
 		# C[0], has the flow exceeded threshold? i.e. flow_rate >= threshold => FDV[3] >= GDV[5]
-		req = oppparser.OFPExpMsgSetCondition(
+		req = bebaparser.OFPExpMsgSetCondition(
 				datapath=datapath,
-				condition=oppproto.CONDITION_GTE,
+				condition=bebaproto.CONDITION_GTE,
 				condition_id=0,
 				table_id=3,
 				operand_1_fd_id=3,
@@ -491,9 +463,9 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# C[3], is the other flow lower than a value? FDV[4] < GDV[7] ?
-		req = oppparser.OFPExpMsgSetCondition(
+		req = bebaparser.OFPExpMsgSetCondition(
 				datapath=datapath,
-				condition=oppproto.CONDITION_LTE,
+				condition=bebaproto.CONDITION_LTE,
 				condition_id=3,
 				table_id=3,
 				operand_1_fd_id=4,
@@ -501,9 +473,9 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# C[4]: did the counter reach counterMax? FDV[5] = GDV[6] ?
-		req = oppparser.OFPExpMsgSetCondition(
+		req = bebaparser.OFPExpMsgSetCondition(
 				datapath=datapath,
-				condition=oppproto.CONDITION_EQ,
+				condition=bebaproto.CONDITION_EQ,
 				condition_id=4,
 				table_id=3,
 				operand_1_fd_id=5,
@@ -531,9 +503,9 @@ class OpenStateEvolution(app_manager.RyuApp):
 			match2false = ofparser.OFPMatch(metadata=2, condition2=0, state=0) #dst=2, port 2
 
 		#if port 1 is better, set_state(1) and output 1
-		actions_true = [oppparser.OFPExpActionSetState(state=1, table_id=3, idle_timeout=5), ofparser.OFPActionOutput(1)]
+		actions_true = [bebaparser.OFPExpActionSetState(state=1, table_id=3, idle_timeout=5), ofparser.OFPActionOutput(1)]
 		#if port 2 is better, set_state(2) and output 2
-		actions_false = [oppparser.OFPExpActionSetState(state=2, table_id=3, idle_timeout=5), ofparser.OFPActionOutput(2)]
+		actions_false = [bebaparser.OFPExpActionSetState(state=2, table_id=3, idle_timeout=5), ofparser.OFPActionOutput(2)]
 
 		self.add_flow(datapath=datapath, table_id=3, priority=20, match=match1true,  actions=actions_true)
 		self.add_flow(datapath=datapath, table_id=3, priority=20, match=match2true,  actions=actions_true)
@@ -551,24 +523,24 @@ class OpenStateEvolution(app_manager.RyuApp):
 				""" actions: save in GDVs external probes' data """
 				if datapath.id==1:
 					if leafNo==2:
-						actions = [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_gd_id=(1 if i==1 else 3),
+						actions = [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_gd_id=(1 if i==1 else 3),
 																		operand_1_hf_id=0, operand_2_cost=0)]
 					elif leafNo==3:
-						actions = [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_gd_id=(2 if i==1 else 4),
+						actions = [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_gd_id=(2 if i==1 else 4),
 																		operand_1_hf_id=0, operand_2_cost=0)]
 				elif datapath.id==2:
 					if leafNo==1:
-						actions = [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_gd_id=(1 if i==1 else 3),
+						actions = [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_gd_id=(1 if i==1 else 3),
 																		operand_1_hf_id=0, operand_2_cost=0)]
 					elif leafNo==3:
-						actions = [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_gd_id=(2 if i==1 else 4),
+						actions = [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_gd_id=(2 if i==1 else 4),
 																		operand_1_hf_id=0, operand_2_cost=0)]
 				elif datapath.id==3:
 					if leafNo==1:
-						actions = [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_gd_id=(1 if i==1 else 3),
+						actions = [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_gd_id=(1 if i==1 else 3),
 																		operand_1_hf_id=0, operand_2_cost=0)]
 					elif leafNo==2:
-						actions = [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_gd_id=(2 if i==1 else 4),
+						actions = [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_gd_id=(2 if i==1 else 4),
 																		operand_1_hf_id=0, operand_2_cost=0)]
 
 				self.add_flow(datapath=datapath, table_id=3, priority=200, match=match, actions=actions)
@@ -578,46 +550,46 @@ class OpenStateEvolution(app_manager.RyuApp):
 				# normal conditions, installed flows continue flowing, calculates ewma if counter reaches max
 				match=ofparser.OFPMatch(in_port=3, state=s, metadata=metadata, condition4=1)
 				actions_ewma = [#calculates deltaT: FDV[1]=HF[1]-FDV[0]=TS_NOW - TS_LAST
-						oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUB, output_fd_id=1, operand_1_hf_id=1, operand_2_fd_id=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUB, output_fd_id=1, operand_1_hf_id=1, operand_2_fd_id=0),
 						#calculates rate: R = (bytes / deltaT_us) * 1000 kB/s
-						oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_MUL, output_fd_id=2, operand_1_fd_id=2, operand_2_gd_id=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_MUL, output_fd_id=2, operand_1_fd_id=2, operand_2_gd_id=0),
 						#stores the result in FDV[3]: THE FLOW ESTIMATED RATE
-						oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_DIV, output_fd_id=2, operand_1_fd_id=2, operand_2_fd_id=1),
+						bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_DIV, output_fd_id=2, operand_1_fd_id=2, operand_2_fd_id=1),
 						#calculates ewma
-						oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_EWMA, output_fd_id=3, operand_1_fd_id=3, operand_2_fd_id=2, coeff_3=30),
+						bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_EWMA, output_fd_id=3, operand_1_fd_id=3, operand_2_fd_id=2, coeff_3=30),
 						#saves current timestamp
-						oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=0, operand_1_hf_id=1, operand_2_cost=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=0, operand_1_hf_id=1, operand_2_cost=0),
 						#counter returns to zero
-						oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUB, output_fd_id=5, operand_1_fd_id=5, operand_2_fd_id=5)]
+						bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUB, output_fd_id=5, operand_1_fd_id=5, operand_2_fd_id=5)]
 						
 				# FDV[4] = flow's alternative path utilization
 				if datapath.id==1:
 					if metadata==2:
-						actions_ewma += [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=4, 
+						actions_ewma += [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=4, 
 																		operand_1_gd_id=(1 if s==2 else 3), operand_2_cost=0)]
 					elif metadata==3:
-						actions_ewma += [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=4, 
+						actions_ewma += [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=4, 
 																		operand_1_gd_id=(2 if s==2 else 4), operand_2_cost=0)]
 				elif datapath.id==2:
 					if metadata==1:
-						actions_ewma += [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=4, 
+						actions_ewma += [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=4, 
 																		operand_1_gd_id=(1 if s==2 else 3), operand_2_cost=0)]
 					elif metadata==3:
-						actions_ewma += [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=4, 
+						actions_ewma += [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=4, 
 																		operand_1_gd_id=(2 if s==2 else 4), operand_2_cost=0)]
 				elif datapath.id==3:
 					if metadata==1:
-						actions_ewma += [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=4, 
+						actions_ewma += [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=4, 
 																		operand_1_gd_id=(1 if s==2 else 3), operand_2_cost=0)]
 					elif metadata==2:
-						actions_ewma += [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=4, 
+						actions_ewma += [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=4, 
 																		operand_1_gd_id=(2 if s==2 else 4), operand_2_cost=0)]
 				actions = actions_ewma + [ofparser.OFPActionOutput(s)]
 				self.add_flow(datapath=datapath, table_id=3, priority=30, match=match, actions=actions)
 				# normal conditions
 				match = ofparser.OFPMatch(in_port=3, state=s, metadata=metadata, condition4=0)
-				actions_ewma_bg = [oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=2, operand_1_fd_id=2, operand_2_hf_id=2),
-							oppparser.OFPExpActionSetDataVariable(table_id=3, opcode=oppproto.OPCODE_SUM, output_fd_id=5, operand_1_fd_id=5, operand_2_cost=1)]
+				actions_ewma_bg = [bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=2, operand_1_fd_id=2, operand_2_hf_id=2),
+							bebaparser.OFPExpActionSetDataVariable(table_id=3, opcode=bebaproto.OPCODE_SUM, output_fd_id=5, operand_1_fd_id=5, operand_2_cost=1)]
 				actions = actions_ewma_bg + [ofparser.OFPActionOutput(s)]
 				self.add_flow(datapath=datapath, table_id=3, priority=30, match=match, actions=actions)
 
@@ -632,13 +604,13 @@ class OpenStateEvolution(app_manager.RyuApp):
 
 				############# condition[0] and [3] are verified, (i.e. big flow) change port ###########
 				match = ofparser.OFPMatch(in_port=3, state=s, condition0=1, condition3=1)
-				actions = [oppparser.OFPExpActionSetState(state=(1 if s==2 else 2)+(1<<5), table_id=3, idle_timeout=5),
+				actions = [bebaparser.OFPExpActionSetState(state=(1 if s==2 else 2)+(1<<5), table_id=3, idle_timeout=5),
 							ofparser.OFPActionOutput(1 if s==2 else 2)]
 				self.add_flow(datapath=datapath, table_id=3, priority=40, match=match, actions=actions)
 
 				########### if the flow returns to a rate under the threshold #############################
 				match = ofparser.OFPMatch(in_port=3, state=s+(1<<5), condition0=0)
-				actions = [oppparser.OFPExpActionSetState(state=s, table_id=3, idle_timeout=5),
+				actions = [bebaparser.OFPExpActionSetState(state=s, table_id=3, idle_timeout=5),
 							ofparser.OFPActionOutput(s)]
 				self.add_flow(datapath=datapath, table_id=3, priority=50, match=match, actions=actions)
 
@@ -647,28 +619,28 @@ class OpenStateEvolution(app_manager.RyuApp):
 
 	def install_spines(self, datapath):
 		######################### TABLE 1 CONFIG ###############
-		req = oppparser.OFPExpMsgConfigureStatefulTable(
+		req = bebaparser.OFPExpMsgConfigureStatefulTable(
 				datapath=datapath,
 				table_id=0,
 				stateful=1)
 		datapath.send_msg(req)
 
 		""" Set lookup extractor = {eth_dst} """
-		req = oppparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=oppproto.OFPSC_EXP_SET_L_EXTRACTOR,
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_L_EXTRACTOR,
 				fields=[ofproto.OXM_OF_IN_PORT],
 				table_id=0)
 		datapath.send_msg(req)
 
 		""" Set update extractor = {eth_dst}  """
-		req = oppparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=oppproto.OFPSC_EXP_SET_U_EXTRACTOR,
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_U_EXTRACTOR,
 				fields=[ofproto.OXM_OF_IN_PORT],
 				table_id=0)
 		datapath.send_msg(req)
 
 		# multiply factor
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=0,
 				global_data_variable_id=0,
@@ -676,7 +648,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# multiply factor
-		req = oppparser.OFPExpMsgsSetGlobalDataVariable(
+		req = bebaparser.OFPExpMsgsSetGlobalDataVariable(
 				datapath=datapath,
 				table_id=0,
 				global_data_variable_id=1,
@@ -684,7 +656,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# mpls extractor
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=0,
 				extractor_id=0,
@@ -693,25 +665,25 @@ class OpenStateEvolution(app_manager.RyuApp):
 		datapath.send_msg(req)
 
 		# timestamp
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=0,
 				extractor_id=1,
-				field=oppproto.OXM_EXP_TIMESTAMP
+				field=bebaproto.OXM_EXP_TIMESTAMP
 			)
 		datapath.send_msg(req)
 
 		# packet lenght
-		req = oppparser.OFPExpMsgHeaderFieldExtract(
+		req = bebaparser.OFPExpMsgHeaderFieldExtract(
 				datapath=datapath,
 				table_id=0,
 				extractor_id=2,
-				field=oppproto.OXM_EXP_PKT_LEN)
+				field=bebaproto.OXM_EXP_PKT_LEN)
 		datapath.send_msg(req)
 
-		req = oppparser.OFPExpMsgSetCondition(
+		req = bebaparser.OFPExpMsgSetCondition(
 				datapath=datapath,
-				condition=oppproto.CONDITION_GTE,
+				condition=bebaproto.CONDITION_GTE,
 				condition_id=0,
 				table_id=0,
 				operand_1_fd_id=4,
@@ -730,11 +702,11 @@ class OpenStateEvolution(app_manager.RyuApp):
 				out_ports = [5,6]
 
 			buckets = []
-			actions = [oppparser.OFPExpActionWriteContextToField(src_type=oppproto.SOURCE_TYPE_GLOBAL_DATA_VAR, src_id=3, dst_field=ofproto.OXM_OF_MPLS_LABEL),
+			actions = [bebaparser.OFPExpActionWriteContextToField(src_type=bebaproto.SOURCE_TYPE_GLOBAL_DATA_VAR, src_id=3, dst_field=ofproto.OXM_OF_MPLS_LABEL),
 						ofparser.OFPActionOutput(out_ports[0]-4)]
 			buckets.append(ofparser.OFPBucket(actions=actions))
 
-			actions = [oppparser.OFPExpActionWriteContextToField(src_type=oppproto.SOURCE_TYPE_GLOBAL_DATA_VAR, src_id=4, dst_field=ofproto.OXM_OF_MPLS_LABEL),
+			actions = [bebaparser.OFPExpActionWriteContextToField(src_type=bebaproto.SOURCE_TYPE_GLOBAL_DATA_VAR, src_id=4, dst_field=ofproto.OXM_OF_MPLS_LABEL),
 						ofparser.OFPActionOutput(out_ports[1]-4)]
 			buckets.append(ofparser.OFPBucket(actions=actions))
 			
@@ -746,8 +718,8 @@ class OpenStateEvolution(app_manager.RyuApp):
 			datapath.send_msg(req)
 
 			match = ofparser.OFPMatch(in_port=i, eth_type=0x8847)
-			actions = [oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUM, output_gd_id=3, operand_1_hf_id=0, operand_2_gd_id=out_ports[0]),
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUM, output_gd_id=4, operand_1_hf_id=0, operand_2_gd_id=out_ports[1]),
+			actions = [bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUM, output_gd_id=3, operand_1_hf_id=0, operand_2_gd_id=out_ports[0]),
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUM, output_gd_id=4, operand_1_hf_id=0, operand_2_gd_id=out_ports[1]),
 						ofparser.OFPActionGroup(i)]
 			self.add_flow(datapath=datapath, priority=100, table_id=0, match=match, actions=actions)
 
@@ -755,27 +727,27 @@ class OpenStateEvolution(app_manager.RyuApp):
 			#simple forwarding packets go to second table to forward
 			match = ofparser.OFPMatch(in_port=i, condition0=1)
 			actions = [#calculates deltaT: FDV[1]=HF[1]-FDV[0]=TS_NOW - TS_LAST
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUB, output_fd_id=1, operand_1_hf_id=1, operand_2_fd_id=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUB, output_fd_id=1, operand_1_hf_id=1, operand_2_fd_id=0),
 						#calculates rate: R = (bytes / deltaT_us) * 1000 kB/s
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_MUL, output_fd_id=2, operand_1_fd_id=2, operand_2_gd_id=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_MUL, output_fd_id=2, operand_1_fd_id=2, operand_2_gd_id=0),
 						#stores the result in FDV[3]: THE FLOW ESTIMATED RATE
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_DIV, output_fd_id=2, operand_1_fd_id=2, operand_2_fd_id=1),
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_DIV, output_fd_id=2, operand_1_fd_id=2, operand_2_fd_id=1),
 						#calculates ewma
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_EWMA, output_fd_id=3, operand_1_fd_id=3, operand_2_fd_id=2, coeff_3=30),
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_EWMA, output_fd_id=3, operand_1_fd_id=3, operand_2_fd_id=2, coeff_3=30),
 						#saves current timestamp
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUM, output_fd_id=0, operand_1_hf_id=1, operand_2_cost=0),
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUM, output_fd_id=0, operand_1_hf_id=1, operand_2_cost=0),
 						#counter returns to zero
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUB, output_fd_id=4, operand_1_fd_id=4, operand_2_fd_id=4),
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUB, output_fd_id=4, operand_1_fd_id=4, operand_2_fd_id=4),
 						# saves in GDV[i+4] the ewma port[1,2,3]->[5,6,7]
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUM, output_gd_id=i+4, operand_1_fd_id=3, operand_2_cost=0)]
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUM, output_gd_id=i+4, operand_1_fd_id=3, operand_2_cost=0)]
 			instructions = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions),
 							ofparser.OFPInstructionGotoTable(1)]
 			mod = ofparser.OFPFlowMod(datapath=datapath, priority=0, table_id=0, match=match, instructions=instructions)
 			datapath.send_msg(mod)
 
 			match = ofparser.OFPMatch(in_port=i, condition0=0)
-			actions = [oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUM, output_fd_id=2, operand_1_fd_id=2, operand_2_hf_id=2),
-						oppparser.OFPExpActionSetDataVariable(table_id=0, opcode=oppproto.OPCODE_SUM, output_fd_id=4, operand_1_fd_id=4, operand_2_cost=1)]
+			actions = [bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUM, output_fd_id=2, operand_1_fd_id=2, operand_2_hf_id=2),
+						bebaparser.OFPExpActionSetDataVariable(table_id=0, opcode=bebaproto.OPCODE_SUM, output_fd_id=4, operand_1_fd_id=4, operand_2_cost=1)]
 			instructions = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions),
 							ofparser.OFPInstructionGotoTable(1)]
 			mod = ofparser.OFPFlowMod(datapath=datapath, priority=0, table_id=0, match=match, instructions=instructions)
@@ -784,14 +756,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 
 		######################## TABLE 2: FORWARDING ################
 
-		match=ofparser.OFPMatch(eth_dst=MAC_ADDRS[0])
-		actions = [ofparser.OFPActionOutput(1)]
-		self.add_flow(datapath=datapath, table_id=1, priority=0, match=match, actions=actions)
-		
-		match=ofparser.OFPMatch(eth_dst=MAC_ADDRS[1])
-		actions = [ofparser.OFPActionOutput(2)]
-		self.add_flow(datapath=datapath, table_id=1, priority=0, match=match, actions=actions)
-		
-		match=ofparser.OFPMatch(eth_dst=MAC_ADDRS[2])
-		actions = [ofparser.OFPActionOutput(3)]
-		self.add_flow(datapath=datapath, table_id=1, priority=0, match=match, actions=actions)
+		for i in LEAVES:
+			match = ofparser.OFPMatch(eth_dst=MAC_ADDRS[i-1])
+			actions = [ofparser.OFPActionOutput(i)]
+			self.add_flow(datapath=datapath, table_id=1, priority=0, match=match, actions=actions)
