@@ -1,5 +1,5 @@
 '''
-———> 2. Load balancer
+2. Load balancer
 Configure a load balancer function that assigns TCP connections to two web servers, in a round-robin fashion 
 
 Step-by-step Simulation Startup
