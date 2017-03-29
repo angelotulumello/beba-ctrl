@@ -39,9 +39,9 @@ h4# nc -lvp 80
 5) Write inside the terminals of h1 the following commands :
 h1# nc -v 1.0.0.1 80
 
-First connection 	—> h4
-Second connection 	—> h3
-Third connection 	—> h4
+First connection 	 h4
+Second connection 	 h3
+Third connection 	 h4
 .
 .
 .
