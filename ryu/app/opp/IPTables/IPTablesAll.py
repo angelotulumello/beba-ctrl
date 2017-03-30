@@ -683,7 +683,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		# HF[0] = state_label
 		# GD[0] = state_label + 0 => GD[0] + HF[0]
 		# state_label -> metadata => GD[0] = HF[0]
-		match = ofparser.OFPMatch(in_port=3)
+		match = ofparser.OFPMatch(in_port=3, eth_type=0x0800)
 		actions = [oppparser.OFPExpActionSetDataVariable(table_id=1, opcode=oppproto.OPCODE_SUM, output_gd_id=0, operand_1_hf_id=0, operand_2_cost=0),
 					oppparser.OFPExpActionWriteContextToField(src_type=oppproto.SOURCE_TYPE_GLOBAL_DATA_VAR,src_id=0,dst_field=ofproto.OXM_OF_METADATA)]
 		inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,actions),
@@ -698,7 +698,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		# Line 0
 		# ip.src -> R0 => HF[0] -> FD[0] => FD[0] = HF[0] + 0
 		# tcp.src -> R1 => HF[1] -> FD[1] => FD[1] = HF[1] + 0
-		match = ofparser.OFPMatch(state=0, in_port=LAN_PORT)
+		match = ofparser.OFPMatch(state=0, in_port=LAN_PORT, eth_type=0x0800)
 		actions = [oppparser.OFPExpActionSetState(state=1, table_id=2),
 				   oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_SUM, output_fd_id=0, operand_1_hf_id=0, operand_2_cost=0),
 				   oppparser.OFPExpActionSetDataVariable(table_id=2, opcode=oppproto.OPCODE_SUM, output_fd_id=1, operand_1_hf_id=1, operand_2_cost=0)]
@@ -712,7 +712,7 @@ class OpenStateEvolution(app_manager.RyuApp):
 		# Line 1
 		# ip.dst = R0 => IPV4_DST = FD[0] 
 		# tcp.dst = R1 => TCP_DST = FD[1]
-		match = ofparser.OFPMatch(state=1, in_port=INTERNET_PORT)
+		match = ofparser.OFPMatch(state=1, in_port=INTERNET_PORT, eth_type=0x0800)
 		actions = [oppparser.OFPExpActionSetState(state=1, table_id=2),
 				   oppparser.OFPExpActionWriteContextToField(src_type=oppproto.SOURCE_TYPE_FLOW_DATA_VAR,src_id=0,dst_field=ofproto.OXM_OF_IPV4_DST),
 				   oppparser.OFPExpActionWriteContextToField(src_type=oppproto.SOURCE_TYPE_FLOW_DATA_VAR,src_id=1,dst_field=ofproto.OXM_OF_TCP_DST)]

@@ -365,7 +365,6 @@ class OpenStateEvolution(app_manager.RyuApp):
 		actions = [oppparser.OFPExpActionSetDataVariable(table_id=1, opcode=oppproto.OPCODE_SUM, output_gd_id=0, operand_1_hf_id=0, operand_2_cost=0),
 					oppparser.OFPExpActionWriteContextToField(src_type=oppproto.SOURCE_TYPE_GLOBAL_DATA_VAR,src_id=0,dst_field=ofproto.OXM_OF_METADATA)]
 		inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,actions),
-			# ofparser.OFPInstructionWriteMetadata(metadata=state_label, metadata_mask=0xFFFFFFFF),
 			ofparser.OFPInstructionGotoTable(2)]
 		mod = ofparser.OFPFlowMod(datapath=datapath, table_id=1,
 								priority=100, match=match, instructions=inst)
