@@ -591,6 +591,17 @@ class OpenStateEvolution(app_manager.RyuApp):
 		""" Tab3 """
 
 
+		########################### SET STATE TABLE 1 ############################################
+
+
+		for stateVal in range(1,21):
+			state = oppparser.OFPExpMsgSetFlowState(datapath=datapath,
+					state=2000+stateVal,
+					keys=[stateVal,0,0,0,0,0,0,0],
+					table_id=1)
+			datapath.send_msg(state)
+
+
 		########################### SET HF DATA VARIABLE TAB 1 ############################################
 
 		''' Da appoggio per salvare lo stato nei metadata'''
