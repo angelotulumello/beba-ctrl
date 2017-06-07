@@ -16,10 +16,11 @@ It is possible to change the RTT in the topology described in leafSpineTopo.py b
 To start the application open two ssh terminals (with the -X option).
 In the first shell type:
 	
-	ryu-manager ldf-flowlets.py
+	ryu-manager improved-ldf-flowlets.py
 
 to start the controller.
-Then in the second shell type: 
+
+In the second shell type: 
 
 	sudo python leafSpineTopo.py 
 
@@ -29,10 +30,12 @@ In the mininet CLI start a new flow by typing
 
     h3 iperf3 -c h2 -p 6667 -M 1400 -l 10k -b 1m -t 60 &
 
-that is a TCP flow limited to 1 Mbps from h3 to h2, for an overall time of 40 seconds.
-A figure will span showing a plot in which are represented in real time the chosen paths of the flows and the jump from one path to another due to flowlet division.
+that is a TCP flow limited to 1 Mbps from h3 to h2, for an overall time of 60 seconds.
+A figure will span showing a plot in which in real time are represented the flows' chosen paths, highlighting the 
+*flowlet* division mechanism.
+
 Now start another flow from h1 to h2 by typing
 
     h1 iperf3 -c h2 -p 6666 -M 1400 -l 10k -b 4m -t 20
 
-Now in the plot it can be seen that the two flows are balanced between the two available paths to h2.
+In the plot it can be seen that the two flows are balanced between the two available paths to h2.
