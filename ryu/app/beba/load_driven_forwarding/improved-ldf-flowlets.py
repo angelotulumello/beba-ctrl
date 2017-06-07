@@ -10,15 +10,15 @@ import ryu.ofproto.beba_v1_0_parser as bebaparser
 from ryu.lib import hub
 from scapy.contrib.mpls import MPLS
 from scapy.layers.l2 import Ether
-from scapy.layers.inet import IP, UDP, Raw
+import matplotlib.pyplot as plt
 
 LOG = logging.getLogger('app.openstate.evolution')
 
-RTT = 0.05  # Tuning parameter for flowlet division
+RTT = 0.08   # Tuning parameter for flowlet division in seconds
 
-PROBE_FREQ = 60  # in milliseconds
+PROBE_FREQ = 50  # in milliseconds
 
-REQ_FREQ = 0.1
+REQ_FREQ = 0.5
 
 ALPHA = bebaproto.EWMA_PARAM_0750  # alpha parameter for the ewma filter
 
@@ -647,7 +647,15 @@ class OpenStateEvolution(app_manager.RyuApp):
 ################### MONITORING
 
     def _monitor(self):
-        for i in [0,1,2]:
+        plt.axis([0, 10, 0.5, 2.5])
+        plt.yticks([1, 2])
+        plt.axes().set_yticklabels(['path1', 'path2'])
+        a = plt.scatter(0, 0, c='g', marker="^", s=100)
+        c = plt.scatter(0, 0, c='r', s=100)
+        plt.legend((a, c), ("h1 flow", "h3 flow"), loc='best', scatterpoints=1)
+        plt.ion()
+
+        for i in [0, 1, 2]:
             f = open(self.output_files[i], "w")
             f.write("Initializing for stateful switch %d\n" % (i+1))
             f.close()
@@ -675,9 +683,19 @@ class OpenStateEvolution(app_manager.RyuApp):
                     if state_dict:
                         f = open(self.output_files[dp_id-1], 'a')
                         index = 1
+                        first_key = []
                         for key in state_dict.keys():
                             f.write("time = " + str(self.time) + ",\t" + str(index) + ":\t" + state_dict[key] + ",\t")
                             index += 1
+                            first_key = key
+                        if dp_id == 3:
+                            plt.axis([self.time-10, 10+self.time, 0.5, 2.5])
+                            plt.scatter(self.time, int(state_dict[first_key]), c='r', s=100)
+                        elif dp_id == 1:
+                            plt.axis([self.time-10, 10+self.time, 0.5, 2.5])
+                            plt.scatter(self.time, int(state_dict[first_key]), c='g', marker="^", s=100)
+
+                        plt.draw()
                         f.write("\n")
                         f.close()
                 else:

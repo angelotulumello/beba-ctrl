@@ -23,16 +23,15 @@ def myNet():
     net.addSwitch('s5')
 
     info('*** Creating links\n')
-    net.addLink('s1', 's4', bw=6)
-    net.addLink('s1', 's5', bw=6)
-    net.addLink('s2', 's4', bw=6)
-    net.addLink('s2', 's5', bw=6)
-    net.addLink('s3', 's4', bw=6)
-    net.addLink('s3', 's5', bw=6)
-
-    net.addLink('h1', 's1', bw=6, delay='10ms')
-    net.addLink('h2', 's2', bw=6, delay='10ms')
-    net.addLink('h3', 's3', bw=6, delay='10ms')
+    net.addLink('s1', 's4', bw=5,  delay="5ms")
+    net.addLink('s1', 's5', bw=5,  delay="5ms")
+    net.addLink('s2', 's4', bw=5,  delay="5ms")
+    net.addLink('s2', 's5', bw=5,  delay="5ms")
+    net.addLink('s3', 's4', bw=5,  delay="5ms")
+    net.addLink('s3', 's5', bw=5,  delay="5ms")
+    net.addLink('h1', 's1', bw=10, delay="5ms")
+    net.addLink('h2', 's2', bw=10, delay="5ms")
+    net.addLink('h3', 's3', bw=10, delay="5ms")
 
     info('*** Starting network\n')
     net.start()
@@ -53,16 +52,22 @@ def myNet():
 
     info('\n*** Opening iperf3 servers on hosts (10.0.0.1-3), on ports 6666-6667-6668]\n')
 
-    net.get('h1').cmd("iperf3 -s -D -p 6666 && iperf3 -s -D -p 6667 && iperf3 -s -D -p 6668")
-    net.get('h2').cmd("iperf3 -s -D -p 6666 && iperf3 -s -D -p 6667 && iperf3 -s -D -p 6668")
-    net.get('h3').cmd("iperf3 -s -D -p 6666 && iperf3 -s -D -p 6667 && iperf3 -s -D -p 6668")
+    net.get('h1').cmd("iperf3 -s --daemon -p 6666 > /dev/null 2>&1 &")
+    net.get('h1').cmd("iperf3 -s --daemon -p 6667 > /dev/null 2>&1 &")
+    net.get('h2').cmd("iperf3 -s --daemon -p 6666 > /dev/null 2>&1 &")
+    net.get('h2').cmd("iperf3 -s --daemon -p 6667 > /dev/null 2>&1 &")
+    net.get('h3').cmd("iperf3 -s --daemon -p 6666 > /dev/null 2>&1 &")
+    net.get('h3').cmd("iperf3 -s --daemon -p 6667 > /dev/null 2>&1 &")
 
     # using low bitrate flows to refresh the estimates, for testing purposes.
     # iperf3 required, comment the next lines if it is not installed.
 
-    net.get('h1').cmd("iperf3 -s -D -p 10000 && iperf3 -s -D -p 10001")
-    net.get('h2').cmd("iperf3 -s -D -p 10000 && iperf3 -s -D -p 10001")
-    net.get('h3').cmd("iperf3 -s -D -p 10000 && iperf3 -s -D -p 10001")
+    net.get('h1').cmd("iperf3 -s --daemon -p 10000 > /dev/null 2>&1 &")
+    net.get('h1').cmd("iperf3 -s --daemon -p 10001 > /dev/null 2>&1 &")
+    net.get('h2').cmd("iperf3 -s --daemon -p 10000 > /dev/null 2>&1 &")
+    net.get('h2').cmd("iperf3 -s --daemon -p 10001 > /dev/null 2>&1 &")
+    net.get('h3').cmd("iperf3 -s --daemon -p 10000 > /dev/null 2>&1 &")
+    net.get('h3').cmd("iperf3 -s --daemon -p 10001 > /dev/null 2>&1 &")
 
     net.get('h1').cmd("iperf3 -c 10.0.0.2 -p 10000 -l 1 -b 1b -t 1000 > /dev/null 2>&1 &")
     net.get('h1').cmd("iperf3 -c 10.0.0.2 -p 10001 -l 1 -b 1b -t 1000 > /dev/null 2>&1 &")
