@@ -10,6 +10,7 @@ import ryu.ofproto.beba_v1_0_parser as bebaparser
 from ryu.lib import hub
 from scapy.contrib.mpls import MPLS
 from scapy.layers.l2 import Ether
+from scapy.layers.inet import IP
 import matplotlib.pyplot as plt
 
 LOG = logging.getLogger('app.openstate.evolution')
@@ -29,7 +30,7 @@ HOSTS_NUMBER = 1
 MAC_ADDRS = ["00:00:00:00:00:01", "00:00:00:00:00:02", "00:00:00:00:00:03"]
 
 # Probe packet generated with scapy
-pkt = Ether(src="10:00:00:00:00:01", dst="20:00:00:00:00:02")/MPLS(ttl=64)
+pkt = Ether(src="10:00:00:00:00:01", dst="20:00:00:00:00:02")/MPLS(ttl=64)/IP(ttl=64, dst='10.0.0.1', src='2.2.2.2')
 pkt_raw = bytearray(str(pkt))
 LOG.info("Generated probe is " + str(pkt).encode("HEX"))
 
