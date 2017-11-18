@@ -265,6 +265,20 @@ def OFPExpActionWriteContextToField(src_type,dst_field,src_id=None):
     data=struct.pack(bebaproto.OFP_EXP_WRITE_CONTEXT_TO_FIELD_PACK_STR, act_type, src_type, src_id, dst_field)
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
 
+def OFPExpActionDecapsulateGTP():
+
+    act_type=bebaproto.OFPAT_EXP_DECAPSULATE_GTP
+
+    data=struct.pack(bebaproto.OFP_EXP_DECAPSULATE_GTP_PACK_STR, act_type)
+    return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
+
+def OFPExpActionEncapsulateGTP(pkttmp_id):
+
+    act_type=bebaproto.OFPAT_EXP_ENCAPSULATE_GTP
+
+    data=struct.pack(bebaproto.OFP_EXP_ENCAPSULATE_GTP_PACK_STR, act_type, 0x0, pkttmp_id)
+    return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
+
 def OFPExpMsgConfigureStatefulTable(datapath, stateful, table_id):
     command=bebaproto.OFPSC_EXP_STATEFUL_TABLE_CONFIG
     data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
