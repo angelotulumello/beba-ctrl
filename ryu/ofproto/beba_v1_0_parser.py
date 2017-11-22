@@ -272,6 +272,13 @@ def OFPExpActionDecapsulateGTP():
     data=struct.pack(bebaproto.OFP_EXP_DECAPSULATE_GTP_PACK_STR, act_type)
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
 
+def OFPExpActionSoftDecapsulateGTP():
+
+    act_type=bebaproto.OFPAT_EXP_SOFT_DECAPSULATE_GTP
+
+    data=struct.pack(bebaproto.OFP_EXP_SOFT_DECAPSULATE_GTP_PACK_STR, act_type)
+    return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
+
 def OFPExpActionEncapsulateGTP(pkttmp_id):
 
     act_type=bebaproto.OFPAT_EXP_ENCAPSULATE_GTP
